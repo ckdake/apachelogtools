@@ -1,14 +1,16 @@
 #!/usr/bin/python
 
+import sys
+import argparse
 import time
-from os import popen
+import os
 
 
 class VhostTail(object):
 
-	def __init__(self,logpath,vhostpos,updatefrequency):
-		self.vhostpos = vhostpos
-		self.updatefrequency = updatefrequency
+	def __init__(self,args):
+		self.vhostpos = args.vhostpos
+		self.updatefrequency = args.updatefrequency
 		self.hits = dict()
 		self.bits = dict()
 		self.codes = dict()
@@ -17,7 +19,10 @@ class VhostTail(object):
 		self.codecount = 0
 		self.starttime = time.time()
 		self.lastdisplay = 0
-		self.logfile = popen('tail -f ' + logpath + ' 2>/dev/null')
+		if not os.path.isfile(args.logfile[0]):
+			print 'no such log file!'
+			sys.exit(2)
+		self.logfile = os.popen('tail -f ' + args.logfile[0] + ' 2>/dev/null')
 
 	def display_list(self):
 		self.lastdisplay = time.time()
@@ -40,8 +45,7 @@ class VhostTail(object):
 
 		while 1:
 			l = self.logfile.readline()
-			if l.find('apache') >= 0:
-			    try:
+			try:
 				self.count = self.count + 1
 				
 				vl = l.split(' ')
@@ -75,19 +79,26 @@ class VhostTail(object):
 				# display the count
 				if self.lastdisplay < (time.time() - self.updatefrequency):	
 					self.display_list()
-			    except:
+			except:
 				continue
 
 def main():
-	try:
-		logpath="/var/log/remote_httpd/access_log"
-		vhostpos = 5
-		updatefrequency = 2
-		vhosttail = VhostTail(logpath,vhostpos,updatefrequency)
-		vhosttail.loop_forever()
+	logfile="/var/log/apache2/access_log"
+	vhostpos = 5
+	updatefrequency = 2
 
+	parser = argparse.ArgumentParser(description='Show "top" like data based on vhost frequency in a log file')
+	parser.add_argument('--logfile', nargs=1, type=str, help="path to apache log file", default="/var/log/apache2/access_log")
+	parser.add_argument('--vhostpos', nargs=1, type=int, default=0, help="position in logfile of vhost name")
+	parser.add_argument('--updatefrequency', nargs=1, type=int, default=2, help="how many seconds between screen updates")
+	args = parser.parse_args()
+
+	try:
+		vhosttail = VhostTail(args)
+		vhosttail.loop_forever()
 	except KeyboardInterrupt:
 	        print '^C received, shutting down'
+		sys.exit(2)
 
 if __name__ == '__main__':
     main()
